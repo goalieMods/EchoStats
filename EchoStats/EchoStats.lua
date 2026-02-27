@@ -61,9 +61,14 @@ do scanner = CreateFrame("GameTooltip","EchoStats_Scanner",nil,"GameTooltipTempl
 -- Keywords checked against utils.GetSpellDescription output.
 -- This runs once per groupId at startup, results cached permanently.
 local KEYWORDS = {
+    {"critical strike rating","crit"},
     {"critical strike",  "crit"},
     {"crit rating",      "crit"},
+    {"crit chance",      "crit"},
     {"hit rating",       "hit"},
+    {"chance to hit",    "hit"},
+    {"hit chance",       "hit"},
+    {"hit by",           "hit"},
     {"haste rating",     "haste"},
     {"haste by",         "haste"},
     {"attack power",     "ap"},
@@ -71,34 +76,50 @@ local KEYWORDS = {
     {"spell damage",     "sp"},
     {"healing done",     "sp"},
     {"bonus healing",    "sp"},
+    {"healing power",    "sp"},
+    {"strength by",      "str"},
     {"strength",         "str"},
+    {"agility by",       "agi"},
     {"agility",          "agi"},
+    {"stamina by",       "stamina"},
     {"stamina",          "stamina"},
+    {"intellect by",     "int"},
     {"intellect",        "int"},
+    {"spirit by",        "spi"},
     {"spirit",           "spi"},
     {"armor penetration","arp"},
+    {"expertise rating", "exp"},
+    {"expertise by",     "exp"},
     {"expertise",        "exp"},
     {"defense rating",   "def"},
     {"defense by",       "def"},
     {"dodge rating",     "dodge"},
     {"dodge by",         "dodge"},
+    {"dodge chance",     "dodge"},
     {"parry rating",     "parry"},
     {"parry by",         "parry"},
+    {"parry chance",     "parry"},
     {"block rating",     "block"},
     {"block value",      "block"},
+    {"block chance",     "block"},
+    {"resilience rating","res"},
+    {"resilience by",    "res"},
     {"resilience",       "res"},
     {"spell penetration","pen"},
     {"mana per 5",       "mp5"},
     {"mp5",              "mp5"},
+    {"mana every 5",     "mp5"},
     {"health per 5",     "hp5"},
     {"hp5",              "hp5"},
     {"maximum health",   "hp"},
     {"max health",       "hp"},
     {"health by",        "hp"},
     {"maximum mana",     "mana"},
+    {"max mana",         "mana"},
     {"mana by",          "mana"},
     {"armor by",         "armor"},
     {"your armor",       "armor"},
+    {"armor",            "armor"},
 }
 
 local function ClassifyDescription(desc)
@@ -268,6 +289,7 @@ local function BuildPanel()
     panel:SetBackdrop({ bgFile="Interface\\Buttons\\WHITE8X8", edgeFile="Interface\\Tooltips\\UI-Tooltip-Border",
         tile=true, tileSize=16, edgeSize=12, insets={left=2,right=2,top=2,bottom=2} })
     panel:SetBackdropColor(0.05,0.05,0.08,0.92); panel:SetBackdropBorderColor(0.3,0.3,0.3,0.8)
+    panel:SetFrameStrata("HIGH")
     panel:SetPoint("TOPLEFT",PaperDollFrame,"TOPRIGHT",-2,0)
     panel:SetPoint("BOTTOMLEFT",PaperDollFrame,"BOTTOMRIGHT",-2,0); panel:EnableMouse(true)
 
@@ -476,8 +498,11 @@ end
 
 -- Toggle button
 local function CreateToggleButton() if toggleBtn then return end
-    toggleBtn=CreateFrame("Button","EchoStatsToggleBtn",CharacterFrame,"UIPanelButtonTemplate")
-    toggleBtn:SetWidth(72); toggleBtn:SetHeight(22); toggleBtn:SetPoint("TOPRIGHT",CharacterFrame,"TOPRIGHT",-52,-4)
+    toggleBtn=CreateFrame("Button","EchoStatsToggleBtn",PaperDollFrame,"UIPanelButtonTemplate")
+    toggleBtn:SetWidth(72); toggleBtn:SetHeight(22)
+    -- Anchor to bottom of character frame, less likely to conflict with other addons
+    toggleBtn:SetPoint("BOTTOMRIGHT",PaperDollFrame,"TOPRIGHT",0,2)
+    toggleBtn:SetFrameStrata("HIGH")
     toggleBtn:SetText("Echoes"); toggleBtn:SetNormalFontObject("GameFontNormalSmall")
     toggleBtn:SetScript("OnClick", function()
         if not panel then BuildPanel(); PopulatePanel() end
@@ -509,7 +534,7 @@ local function TryInit() if initialized then return end
     end
     local mapped,total=0,0; for _ in pairs(groupStatMap) do mapped=mapped+1 end; for _ in pairs(spellGroupMap) do total=total+1 end
     if EchoStatsDB.panelVisible~=false then panelVisible=true; BuildPanel(); PopulatePanel() end
-    print(format("|cff00ccff[EchoStats]|r Loaded. Mapped %d groups from %d perks. /es debug",mapped,total)) end
+    print(format("|cff00ccff[EchoStats]|r Loaded. %d groups mapped. /echostats or /estats",mapped)) end
 
 local retries=0
 local function RetryInit() if initialized then return end; retries=retries+1; if retries>30 then return end
@@ -533,7 +558,7 @@ local origHide=CharacterFrame:GetScript("OnHide")
 CharacterFrame:SetScript("OnHide",function(self,...) if origHide then origHide(self,...) end; if panel then panel:Hide() end end)
 
 -- Slash
-SLASH_ECHOSTATS1="/echostats"; SLASH_ECHOSTATS2="/es"
+SLASH_ECHOSTATS1="/echostats"; SLASH_ECHOSTATS2="/echostat"; SLASH_ECHOSTATS3="/estats"
 SlashCmdList["ECHOSTATS"]=function(msg) msg=(msg or ""):lower():trim()
     if msg=="show" then if not panel then BuildPanel() end; InvalidateCache(); PopulatePanel(); panel:Show(); panelVisible=true; EchoStatsDB.panelVisible=true
     elseif msg=="hide" then if panel then panel:Hide() end; panelVisible=false; EchoStatsDB.panelVisible=false
@@ -590,7 +615,21 @@ SlashCmdList["ECHOSTATS"]=function(msg) msg=(msg or ""):lower():trim()
                         print(format("    '%s' id=%d stk=%d -> %s = %s", tostring(pn), sid, stk, tostring(st), tostring(val)))
                     end end end end
                 print("  Total granted: "..cnt)
+                -- Show any granted perks that failed to classify
+                local missed = {}
+                for pn2,inst2 in pairs(granted) do if type(inst2)=="table" then for _,inf2 in ipairs(inst2) do
+                    if inf2.spellId then local st2=GetStatType(inf2.spellId)
+                        if not st2 and not missed[inf2.spellId] then missed[inf2.spellId]=pn2 end end end end end
+                if next(missed) then
+                    print("  |cffff4444UNCLASSIFIED granted perks:|r")
+                    for sid,pn2 in pairs(missed) do
+                        local desc=""
+                        if utils and utils.GetSpellDescription then
+                            local ok3,d=pcall(utils.GetSpellDescription,sid,500,1); if ok3 and d then desc=d:sub(1,100) end end
+                        print(format("    %s (id=%d): %s",tostring(pn2),sid,desc))
+                    end
+                end
             end
         end
-    else print("|cff00ccff[EchoStats]|r  /es show|hide|dump|refresh|debug") end
+    else print("|cff00ccff[EchoStats]|r  /echostats show|hide|dump|refresh|debug (or /estats)") end
 end
