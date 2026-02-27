@@ -1,0 +1,10 @@
+## Interface: 30300
+## Title: |cff00ccffEchoStats|r
+## Notes: Adds Ebonhold Echo stat bonuses to the Character Stats panel. Shows all stats at once with echo contributions highlighted.
+## Dependencies: ProjectEbonhold
+## OptionalDeps: EHTweaks
+## SavedVariables: EchoStatsDB
+## Author: Claude (for Steve)
+## Version: 1.0.0
+
+EchoStats.lua
