@@ -290,8 +290,21 @@ local function BuildPanel()
         tile=true, tileSize=16, edgeSize=12, insets={left=2,right=2,top=2,bottom=2} })
     panel:SetBackdropColor(0.05,0.05,0.08,0.92); panel:SetBackdropBorderColor(0.3,0.3,0.3,0.8)
     panel:SetFrameStrata("HIGH")
-    panel:SetPoint("TOPLEFT",PaperDollFrame,"TOPRIGHT",-2,0)
-    panel:SetPoint("BOTTOMLEFT",PaperDollFrame,"BOTTOMRIGHT",-2,0); panel:EnableMouse(true)
+    if EchoStatsDB.panelPos then
+        panel:SetPoint(EchoStatsDB.panelPos[1], UIParent, EchoStatsDB.panelPos[2], EchoStatsDB.panelPos[3], EchoStatsDB.panelPos[4])
+    else
+        panel:SetPoint("TOPLEFT",PaperDollFrame,"TOPRIGHT",-2,0)
+    end
+    panel:SetHeight(424)
+    panel:EnableMouse(true)
+    panel:SetMovable(true)
+    panel:RegisterForDrag("LeftButton")
+    panel:SetScript("OnDragStart", panel.StartMoving)
+    panel:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local p, _, rp, x, y = self:GetPoint()
+        EchoStatsDB.panelPos = {p, rp, x, y}
+    end)
 
     local tb=panel:CreateTexture(nil,"ARTWORK"); tb:SetTexture("Interface\\Buttons\\WHITE8X8")
     tb:SetVertexColor(0.12,0.12,0.18,1); tb:SetHeight(20); tb:SetPoint("TOPLEFT",2,-2); tb:SetPoint("TOPRIGHT",-2,-2)
@@ -500,10 +513,26 @@ end
 local function CreateToggleButton() if toggleBtn then return end
     toggleBtn=CreateFrame("Button","EchoStatsToggleBtn",PaperDollFrame,"UIPanelButtonTemplate")
     toggleBtn:SetWidth(72); toggleBtn:SetHeight(22)
-    -- Anchor to bottom of character frame, less likely to conflict with other addons
-    toggleBtn:SetPoint("BOTTOMRIGHT",PaperDollFrame,"TOPRIGHT",0,2)
     toggleBtn:SetFrameStrata("HIGH")
     toggleBtn:SetText("Echoes"); toggleBtn:SetNormalFontObject("GameFontNormalSmall")
+    
+    toggleBtn:SetMovable(true)
+    toggleBtn:RegisterForDrag("LeftButton")
+    toggleBtn:SetScript("OnDragStart", toggleBtn.StartMoving)
+    toggleBtn:SetScript("OnDragStop", function(self)
+        self:StopMovingOrSizing()
+        local p, _, rp, x, y = self:GetPoint()
+        EchoStatsDB.btnPos = {p, rp, x, y}
+    end)
+
+    if EchoStatsDB.btnPos then
+        toggleBtn:ClearAllPoints()
+        toggleBtn:SetPoint(EchoStatsDB.btnPos[1], UIParent, EchoStatsDB.btnPos[2], EchoStatsDB.btnPos[3], EchoStatsDB.btnPos[4])
+    else
+        -- Anchor to bottom of character frame, less likely to conflict with other addons
+        toggleBtn:SetPoint("BOTTOMRIGHT",PaperDollFrame,"TOPRIGHT",0,2)
+    end
+
     toggleBtn:SetScript("OnClick", function()
         if not panel then BuildPanel(); PopulatePanel() end
         if panel:IsShown() then panel:Hide(); panelVisible=false else panel:Show(); InvalidateCache(); PopulatePanel(); panelVisible=true end
